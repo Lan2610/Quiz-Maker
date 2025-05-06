@@ -26,10 +26,11 @@ def summarize_text(text):
     return " ".join(summaries)
 
 def generate_quiz(summary):
-    sentences = summary.split(".")
+    sentences = summary.split(".")  # Tách câu bằng cách sử dụng dấu chấm
+    sentences = [s.strip() for s in sentences if s.strip()]  # Loại bỏ câu rỗng
     questions = []
     for i, sentence in enumerate(sentences):
-        if len(sentence.split()) > 5 and i < 5:
+        if len(sentence.split()) > 5 and i < 5:  # Tạo tối đa 5 câu hỏi
             q = f"Câu {i+1}: {sentence.strip()} đúng hay sai?"
             questions.append({"question": q, "options": ["Đúng", "Sai"], "answer": "Đúng"})
     return questions
