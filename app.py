@@ -5,8 +5,6 @@ from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.lsa import LsaSummarizer
 import random
-import nltk
-nltk.download("punkt")
 
 st.set_page_config(page_title="AI Quiz Maker", layout="centered")
 st.title("🧠 AI Tóm tắt & Tạo câu hỏi trắc nghiệm")
