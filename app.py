@@ -1,80 +1,80 @@
 import streamlit as st
-from transformers import pipeline
-import os
-from io import StringIO
-from docx import Document
-import PyPDF2
+from PyPDF2 import PdfReader
+import docx
+import nltk
+from sumy.parsers.plaintext import PlaintextParser
+from sumy.nlp.tokenizers import Tokenizer
+from sumy.summarizers.lsa import LsaSummarizer
+import random
 
-# Tạo pipeline sử dụng mô hình từ Hugging Face Hub
-summarizer = pipeline("summarization", model="t5-small", tokenizer="t5-small")
+# Tải dữ liệu tokenizer
+nltk.download('punkt')
 
-def summarize_text(text):
-    # Chia văn bản thành các đoạn nhỏ hơn để xử lý
-    chunks = [text[i:i+1000] for i in range(0, len(text), 1000)]
-    summaries = []
-    
-    # Tạo tóm tắt cho từng đoạn
-    for chunk in chunks:
-        result = summarizer(chunk, max_length=120, min_length=30, do_sample=False)
-        summaries.append(result[0]['summary_text'])
-    
-    return " ".join(summaries)
+st.set_page_config(page_title="Quiz Maker", layout="wide")
 
-def extract_text_from_pdf(file):
-    # Mở file PDF và trích xuất văn bản
-    pdf_reader = PyPDF2.PdfReader(file)
-    text = ""
-    for page_num in range(len(pdf_reader.pages)):
-        page = pdf_reader.pages[page_num]
-        text += page.extract_text()
-    return text
+st.title("🧠 Quiz Maker từ tài liệu PDF / Word / Text")
 
-def extract_text_from_docx(file):
-    # Mở file DOCX và trích xuất văn bản
-    doc = Document(file)
-    text = ""
-    for para in doc.paragraphs:
-        text += para.text + "\n"
-    return text
+# Hàm đọc nội dung từ các loại file
+def read_file(file):
+    if file.name.endswith(".pdf"):
+        reader = PdfReader(file)
+        return "\n".join([page.extract_text() for page in reader.pages])
+    elif file.name.endswith(".docx"):
+        doc = docx.Document(file)
+        return "\n".join([para.text for para in doc.paragraphs])
+    else:
+        return file.read().decode("utf-8")
 
-def extract_text_from_txt(file):
-    # Mở file TXT và trích xuất văn bản
-    text = file.read().decode("utf-8")
-    return text
+# Tóm tắt văn bản
+def summarize_text(text, sentence_count=5):
+    parser = PlaintextParser.from_string(text, Tokenizer("english"))
+    summarizer = LsaSummarizer()
+    summary = summarizer(parser.document, sentence_count)
+    return " ".join(str(sentence) for sentence in summary)
 
-st.title("Ứng dụng Tóm tắt và Tạo câu hỏi Quiz")
-st.write("Tải lên một tệp PDF, DOCX hoặc TXT để tạo tóm tắt và câu hỏi quiz!")
+# Tạo câu hỏi từ đoạn tóm tắt
+def generate_questions(summary, num_questions=5):
+    sentences = summary.split(". ")
+    questions = []
+    for i in range(min(num_questions, len(sentences))):
+        sentence = sentences[i].strip()
+        if len(sentence.split()) < 5:
+            continue
+        words = sentence.split()
+        if len(words) < 4:
+            continue
+        keyword = random.choice(words)
+        question = sentence.replace(keyword, "_____")
+        distractors = random.sample([w for w in words if w != keyword], k=min(3, len(words)-1))
+        options = distractors + [keyword]
+        random.shuffle(options)
+        questions.append({
+            "question": question,
+            "options": options,
+            "answer": keyword
+        })
+    return questions
 
-# Cho phép người dùng tải lên file
-uploaded_file = st.file_uploader("Tải lên file", type=["pdf", "docx", "txt"])
+# Tải file
+uploaded_file = st.file_uploader("Tải file PDF, DOCX hoặc TXT", type=["pdf", "docx", "txt"])
 
-if uploaded_file is not None:
-    # Xác định loại tệp người dùng tải lên và trích xuất văn bản
-    if uploaded_file.type == "application/pdf":
-        text = extract_text_from_pdf(uploaded_file)
-    elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-        text = extract_text_from_docx(uploaded_file)
-    elif uploaded_file.type == "text/plain":
-        text = extract_text_from_txt(uploaded_file)
+if uploaded_file:
+    text = read_file(uploaded_file)
+    st.subheader("📄 Nội dung gốc:")
+    st.text_area("Văn bản", text, height=200)
 
-    # Hiển thị văn bản đã tải lên
-    st.subheader("Văn bản đã tải lên:")
-    st.write(text)
-
-    # Tóm tắt văn bản
-    st.subheader("Tóm tắt:")
     summary = summarize_text(text)
+    st.subheader("✍️ Tóm tắt:")
     st.write(summary)
 
-    # Tạo câu hỏi quiz từ tóm tắt
-    st.subheader("Câu hỏi Quiz:")
-    # Bạn có thể áp dụng logic tạo câu hỏi tại đây (giả lập hoặc sử dụng mô hình để tạo câu hỏi từ tóm tắt)
-    questions = [
-        {"question": "Câu hỏi 1: Tóm tắt nội dung chính của văn bản trên là gì?", "options": ["Tóm tắt 1", "Tóm tắt 2", "Tóm tắt 3"], "answer": "Tóm tắt 1"},
-        {"question": "Câu hỏi 2: Nội dung của phần này nói về cái gì?", "options": ["Phần 1", "Phần 2", "Phần 3"], "answer": "Phần 1"},
-    ]
+    questions = generate_questions(summary)
+    st.subheader("📝 Bộ câu hỏi trắc nghiệm:")
 
-    # Hiển thị câu hỏi quiz
-    for q in questions:
-        st.write(q["question"])
-        st.radio("Chọn đáp án", q["options"], index=0)
+    for i, q in enumerate(questions):
+        st.markdown(f"**Câu {i+1}:** {q['question']}")
+        answer = st.radio("Chọn đáp án:", q["options"], key=f"q{i}")
+        if answer == q["answer"]:
+            st.success("✅ Chính xác!")
+        else:
+            st.error(f"❌ Sai. Đáp án đúng là: **{q['answer']}**")
+        st.markdown("---")
