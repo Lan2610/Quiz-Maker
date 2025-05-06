@@ -29,10 +29,20 @@ def generate_quiz(summary):
     sentences = summary.split(".")  # Tách câu bằng cách sử dụng dấu chấm
     sentences = [s.strip() for s in sentences if s.strip()]  # Loại bỏ câu rỗng
     questions = []
-    for i, sentence in enumerate(sentences):
-        if len(sentence.split()) > 5 and i < 5:  # Tạo tối đa 5 câu hỏi
+    max_questions = min(len(sentences), 10)  # Tạo tối đa 10 câu hỏi
+
+    for i, sentence in enumerate(sentences[:max_questions]):
+        if len(sentence.split()) > 5:  # Kiểm tra câu có đủ độ dài
             q = f"Câu {i+1}: {sentence.strip()} đúng hay sai?"
             questions.append({"question": q, "options": ["Đúng", "Sai"], "answer": "Đúng"})
+
+    # Nếu ít câu hỏi, tạo câu hỏi theo dạng khác (VD: "Câu nào đúng?" cho những câu ngắn)
+    if len(questions) < 5:
+        for i, sentence in enumerate(sentences[:max_questions]):
+            if len(sentence.split()) <= 5:
+                q = f"Câu {i+1}: {sentence.strip()} là đúng hay sai?"
+                questions.append({"question": q, "options": ["Đúng", "Sai"], "answer": "Đúng"})
+    
     return questions
 
 def main():
