@@ -2,10 +2,9 @@ import streamlit as st
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 import PyPDF2
 import docx
-import io
 
-# Dùng mô hình T5 tiếng Việt từ VietAI
-model_name = "VietAI/vietnamese-t5"
+# Tên mô hình hỗ trợ tiếng Việt tốt hơn
+model_name = "csebuetnlp/mT5_multilingual_XLSum"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 summarizer = pipeline("summarization", model=model, tokenizer=tokenizer)
@@ -21,13 +20,12 @@ def read_file(file):
         return file.read().decode("utf-8")
 
 def summarize_text(text):
+    # Cắt đoạn lớn thành từng phần nhỏ (dưới 512 token)
     chunks = [text[i:i+1000] for i in range(0, len(text), 1000)]
     summaries = []
     for chunk in chunks:
-        inputs = tokenizer("Tóm tắt: " + chunk, return_tensors="pt", max_length=512, truncation=True)
-        summary_ids = model.generate(inputs["input_ids"], max_length=150, min_length=30, length_penalty=2.0, num_beams=4, early_stopping=True)
-        summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
-        summaries.append(summary)
+        result = summarizer(chunk, max_length=256, min_length=40, do_sample=False)
+        summaries.append(result[0]['summary_text'])
     return " ".join(summaries)
 
 def generate_quiz(summary):
@@ -46,7 +44,7 @@ def generate_quiz(summary):
             if len(sentence.split()) <= 5:
                 q = f"Câu {i+1}: {sentence.strip()} là đúng hay sai?"
                 questions.append({"question": q, "options": ["Đúng", "Sai"], "answer": "Đúng"})
-    
+
     return questions
 
 def main():
