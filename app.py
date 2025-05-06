@@ -1,11 +1,14 @@
 import streamlit as st
-from transformers import pipeline
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 import PyPDF2
 import docx
 import io
 
-# Tạo pipeline tóm tắt với mô hình nhẹ
-summarizer = pipeline("summarization", model="t5-small", tokenizer="t5-small")
+# Dùng mô hình T5 tiếng Việt từ VietAI
+model_name = "VietAI/vietnamese-t5"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+summarizer = pipeline("summarization", model=model, tokenizer=tokenizer)
 
 def read_file(file):
     if file.type == "application/pdf":
@@ -21,22 +24,23 @@ def summarize_text(text):
     chunks = [text[i:i+1000] for i in range(0, len(text), 1000)]
     summaries = []
     for chunk in chunks:
-        result = summarizer(chunk, max_length=120, min_length=30, do_sample=False)
-        summaries.append(result[0]['summary_text'])
+        inputs = tokenizer("Tóm tắt: " + chunk, return_tensors="pt", max_length=512, truncation=True)
+        summary_ids = model.generate(inputs["input_ids"], max_length=150, min_length=30, length_penalty=2.0, num_beams=4, early_stopping=True)
+        summary = tokenizer.decode(summary_ids[0], skip_special_tokens=True)
+        summaries.append(summary)
     return " ".join(summaries)
 
 def generate_quiz(summary):
-    sentences = summary.split(".")  # Tách câu bằng cách sử dụng dấu chấm
-    sentences = [s.strip() for s in sentences if s.strip()]  # Loại bỏ câu rỗng
+    sentences = summary.split(".")
+    sentences = [s.strip() for s in sentences if s.strip()]
     questions = []
-    max_questions = min(len(sentences), 10)  # Tạo tối đa 10 câu hỏi
+    max_questions = min(len(sentences), 10)
 
     for i, sentence in enumerate(sentences[:max_questions]):
-        if len(sentence.split()) > 5:  # Kiểm tra câu có đủ độ dài
+        if len(sentence.split()) > 5:
             q = f"Câu {i+1}: {sentence.strip()} đúng hay sai?"
             questions.append({"question": q, "options": ["Đúng", "Sai"], "answer": "Đúng"})
 
-    # Nếu ít câu hỏi, tạo câu hỏi theo dạng khác (VD: "Câu nào đúng?" cho những câu ngắn)
     if len(questions) < 5:
         for i, sentence in enumerate(sentences[:max_questions]):
             if len(sentence.split()) <= 5:
