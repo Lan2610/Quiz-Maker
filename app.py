@@ -70,7 +70,7 @@ if uploaded_file:
 
     st.subheader("Câu hỏi trắc nghiệm")
     for idx, q in enumerate(questions):
-        st.markdown(f"*Câu {idx + 1}:* {q['question']}")
+        st.markdown(f"**Câu {idx + 1}:** {q['question']}")
         user_ans = st.radio("Chọn đáp án:", q['options'], key=f"q_{idx}")
         if st.button(f"Kiểm tra câu {idx + 1}"):
             if user_ans == q['answer']:
