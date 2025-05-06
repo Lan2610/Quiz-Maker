@@ -5,15 +5,8 @@ from io import StringIO
 from docx import Document
 import PyPDF2
 
-# Kiểm tra nếu mô hình đã được tải về cục bộ
-model_name = "t5-small"
-
-if not os.path.exists(f"./{model_name}"):
-    # Nếu chưa có mô hình, tải từ Hugging Face Hub
-    summarizer = pipeline("summarization", model=model_name, tokenizer=model_name)
-else:
-    # Nếu mô hình đã có, sử dụng mô hình từ thư mục cục bộ
-    summarizer = pipeline("summarization", model=f"./{model_name}", tokenizer=f"./{model_name}")
+# Tạo pipeline sử dụng mô hình từ Hugging Face Hub
+summarizer = pipeline("summarization", model="t5-small", tokenizer="t5-small")
 
 def summarize_text(text):
     # Chia văn bản thành các đoạn nhỏ hơn để xử lý
