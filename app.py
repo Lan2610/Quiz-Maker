@@ -1,15 +1,11 @@
 import streamlit as st
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
+from transformers import pipeline
 import PyPDF2
 import docx
+import io
 
-# Dùng mô hình tốt cho tiếng Việt
-model_name = "csebuetnlp/mT5_multilingual_XLSum"
-
-# ✅ Dùng tokenizer chậm để tránh lỗi không có fast tokenizer
-tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
-model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-summarizer = pipeline("summarization", model=model, tokenizer=tokenizer)
+# Tạo pipeline tóm tắt với mô hình nhẹ
+summarizer = pipeline("summarization", model="t5-small", tokenizer="t5-small")
 
 def read_file(file):
     if file.type == "application/pdf":
@@ -25,27 +21,28 @@ def summarize_text(text):
     chunks = [text[i:i+1000] for i in range(0, len(text), 1000)]
     summaries = []
     for chunk in chunks:
-        result = summarizer(chunk, max_length=256, min_length=40, do_sample=False)
+        result = summarizer(chunk, max_length=120, min_length=30, do_sample=False)
         summaries.append(result[0]['summary_text'])
     return " ".join(summaries)
 
 def generate_quiz(summary):
-    sentences = summary.split(".")
-    sentences = [s.strip() for s in sentences if s.strip()]
+    sentences = summary.split(".")  # Tách câu bằng cách sử dụng dấu chấm
+    sentences = [s.strip() for s in sentences if s.strip()]  # Loại bỏ câu rỗng
     questions = []
-    max_questions = min(len(sentences), 10)
+    max_questions = min(len(sentences), 10)  # Tạo tối đa 10 câu hỏi
 
     for i, sentence in enumerate(sentences[:max_questions]):
-        if len(sentence.split()) > 5:
+        if len(sentence.split()) > 5:  # Kiểm tra câu có đủ độ dài
             q = f"Câu {i+1}: {sentence.strip()} đúng hay sai?"
             questions.append({"question": q, "options": ["Đúng", "Sai"], "answer": "Đúng"})
 
+    # Nếu ít câu hỏi, tạo câu hỏi theo dạng khác (VD: "Câu nào đúng?" cho những câu ngắn)
     if len(questions) < 5:
         for i, sentence in enumerate(sentences[:max_questions]):
             if len(sentence.split()) <= 5:
                 q = f"Câu {i+1}: {sentence.strip()} là đúng hay sai?"
                 questions.append({"question": q, "options": ["Đúng", "Sai"], "answer": "Đúng"})
-
+    
     return questions
 
 def main():
@@ -69,5 +66,5 @@ def main():
                 else:
                     st.error(f"❌ Sai. Đáp án đúng là: {q['answer']}")
 
-if __name__ == "__main__":
+if _name_ == "_main_":
     main()
