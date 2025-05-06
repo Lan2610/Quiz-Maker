@@ -1,78 +1,59 @@
 import streamlit as st
-from PyPDF2 import PdfReader
-from docx import Document
-from sumy.parsers.plaintext import PlaintextParser
-from sumy.nlp.tokenizers import Tokenizer
-from sumy.summarizers.lsa import LsaSummarizer
-import random
+from transformers import pipeline
+import PyPDF2
+import docx
+import io
 
-st.set_page_config(page_title="AI Quiz Maker", layout="centered")
-st.title("🧠 AI Tóm tắt & Tạo câu hỏi trắc nghiệm")
+# Tạo pipeline tóm tắt với mô hình nhẹ
+summarizer = pipeline("summarization", model="t5-small", tokenizer="t5-small")
 
-def read_pdf(file):
-    reader = PdfReader(file)
-    text = ""
-    for page in reader.pages:
-        content = page.extract_text()
-        if content:
-            text += content + "\n"
-    return text
+def read_file(file):
+    if file.type == "application/pdf":
+        reader = PyPDF2.PdfReader(file)
+        return "\n".join(page.extract_text() for page in reader.pages if page.extract_text())
+    elif file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        doc = docx.Document(file)
+        return "\n".join([para.text for para in doc.paragraphs])
+    else:
+        return file.read().decode("utf-8")
 
-def read_docx(file):
-    doc = Document(file)
-    return "\n".join([p.text for p in doc.paragraphs if p.text.strip()])
+def summarize_text(text):
+    chunks = [text[i:i+1000] for i in range(0, len(text), 1000)]
+    summaries = []
+    for chunk in chunks:
+        result = summarizer(chunk, max_length=120, min_length=30, do_sample=False)
+        summaries.append(result[0]['summary_text'])
+    return " ".join(summaries)
 
-def read_txt(file):
-    return file.read().decode("utf-8")
-
-def summarize_text(text, sentence_count=5):
-    # Tóm tắt thủ công bằng cách chọn ra những câu dài nhất
-    sentences = text.split(".")
-    sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
-    sentences.sort(key=lambda s: len(s), reverse=True)
-    summary = sentences[:sentence_count]
-    return ". ".join(summary) + "."
-
-def generate_questions(summary_text, num_questions=3):
-    sentences = summary_text.split(". ")
+def generate_quiz(summary):
+    sentences = summary.split(".")
     questions = []
-    for i in range(min(num_questions, len(sentences))):
-        sentence = sentences[i].strip()
-        if len(sentence.split()) < 4:
-            continue
-        answer = sentence.split()[-1].strip(".")
-        question = sentence.replace(answer, "______")
-        options = [answer, answer[::-1], answer.upper()]
-        random.shuffle(options)
-        questions.append({
-            "question": question,
-            "options": options,
-            "answer": answer
-        })
+    for i, sentence in enumerate(sentences):
+        if len(sentence.split()) > 5 and i < 5:
+            q = f"Câu {i+1}: {sentence.strip()} đúng hay sai?"
+            questions.append({"question": q, "options": ["Đúng", "Sai"], "answer": "Đúng"})
     return questions
 
-uploaded_file = st.file_uploader("📄 Tải tài liệu (PDF, DOCX, TXT)", type=["pdf", "docx", "txt"])
+def main():
+    st.title("📚 Quiz Maker - Tóm tắt & Trắc nghiệm từ văn bản")
 
-if uploaded_file:
-    if uploaded_file.type == "application/pdf":
-        text = read_pdf(uploaded_file)
-    elif uploaded_file.type in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword"]:
-        text = read_docx(uploaded_file)
-    else:
-        text = read_txt(uploaded_file)
+    uploaded_file = st.file_uploader("Tải lên file PDF, Word hoặc TXT", type=["pdf", "docx", "txt"])
 
-    st.subheader("📌 Tóm tắt nội dung:")
-    summary = summarize_text(text)
-    st.write(summary)
+    if uploaded_file is not None:
+        with st.spinner("📖 Đang đọc và xử lý nội dung..."):
+            text = read_file(uploaded_file)
+            summary = summarize_text(text)
+            st.subheader("📝 Nội dung được tóm tắt:")
+            st.write(summary)
 
-    st.subheader("❓ Câu hỏi trắc nghiệm")
-    quiz = generate_questions(summary)
+            quiz = generate_quiz(summary)
+            st.subheader("🧠 Trắc nghiệm:")
+            for i, q in enumerate(quiz):
+                user_answer = st.radio(q["question"], q["options"], key=i)
+                if user_answer == q["answer"]:
+                    st.success("✅ Chính xác!")
+                else:
+                    st.error(f"❌ Sai. Đáp án đúng là: {q['answer']}")
 
-    for idx, q in enumerate(quiz):
-        st.markdown(f"**Câu {idx+1}:** {q['question']}")
-        ans = st.radio("Chọn đáp án:", q['options'], key=f"q_{idx}")
-        if st.button(f"Kiểm tra câu {idx+1}"):
-            if ans == q["answer"]:
-                st.success("✅ Chính xác!")
-            else:
-                st.error(f"❌ Sai rồi. Đáp án đúng: {q['answer']}")
+if __name__ == "__main__":
+    main()
