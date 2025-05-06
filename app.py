@@ -26,10 +26,12 @@ def read_txt(file):
     return file.read().decode("utf-8")
 
 def summarize_text(text, sentence_count=5):
-    parser = PlaintextParser.from_string(text, Tokenizer("english"))
-    summarizer = LsaSummarizer()
-    summary = summarizer(parser.document, sentence_count)
-    return " ".join(str(sentence) for sentence in summary)
+    # Tóm tắt thủ công bằng cách chọn ra những câu dài nhất
+    sentences = text.split(".")
+    sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+    sentences.sort(key=lambda s: len(s), reverse=True)
+    summary = sentences[:sentence_count]
+    return ". ".join(summary) + "."
 
 def generate_questions(summary_text, num_questions=3):
     sentences = summary_text.split(". ")
