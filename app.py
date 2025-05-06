@@ -1,15 +1,13 @@
 import streamlit as st
 from PyPDF2 import PdfReader
 from docx import Document
-from transformers import pipeline
+from sumy.parsers.plaintext import PlaintextParser
+from sumy.nlp.tokenizers import Tokenizer
+from sumy.summarizers.lsa import LsaSummarizer
 import random
 
-st.set_page_config(page_title="Quiz Maker", layout="centered")
-st.title("AI Quiz Generator")
-
-# AI pipelines
-summarizer = pipeline("summarization")
-qa_generator = pipeline("text2text-generation", model="iarfmoose/t5-base-question-generator")
+st.set_page_config(page_title="AI Quiz Maker", layout="centered")
+st.title("🧠 AI Tóm tắt & Tạo câu hỏi trắc nghiệm")
 
 def read_pdf(file):
     reader = PdfReader(file)
@@ -27,30 +25,31 @@ def read_docx(file):
 def read_txt(file):
     return file.read().decode("utf-8")
 
-def summarize_text(text):
-    chunks = [text[i:i+1000] for i in range(0, len(text), 1000)]
-    summary = ""
-    for chunk in chunks:
-        result = summarizer(chunk, max_length=150, min_length=30, do_sample=False)
-        summary += result[0]["summary_text"] + " "
-    return summary.strip()
+def summarize_text(text, sentence_count=5):
+    parser = PlaintextParser.from_string(text, Tokenizer("english"))
+    summarizer = LsaSummarizer()
+    summary = summarizer(parser.document, sentence_count)
+    return " ".join(str(sentence) for sentence in summary)
 
-def generate_mcq(text, n_questions=5):
+def generate_questions(summary_text, num_questions=3):
+    sentences = summary_text.split(". ")
     questions = []
-    generated = qa_generator(f"generate questions: {text}", max_length=256, num_return_sequences=n_questions)
-    for item in generated:
-        q_and_a = item['generated_text']
-        if "?" in q_and_a:
-            q_split = q_and_a.split("?")
-            question = q_split[0].strip() + "?"
-            answer = q_split[1].strip().split("\n")[0]
-            distractors = [answer[::-1], answer.upper(), answer.lower()]
-            options = distractors[:2] + [answer]
-            random.shuffle(options)
-            questions.append({"question": question, "options": options, "answer": answer})
+    for i in range(min(num_questions, len(sentences))):
+        sentence = sentences[i].strip()
+        if len(sentence.split()) < 4:
+            continue
+        answer = sentence.split()[-1].strip(".")
+        question = sentence.replace(answer, "______")
+        options = [answer, answer[::-1], answer.upper()]
+        random.shuffle(options)
+        questions.append({
+            "question": question,
+            "options": options,
+            "answer": answer
+        })
     return questions
 
-uploaded_file = st.file_uploader("Tải lên tài liệu", type=["pdf", "docx", "txt"])
+uploaded_file = st.file_uploader("📄 Tải tài liệu (PDF, DOCX, TXT)", type=["pdf", "docx", "txt"])
 
 if uploaded_file:
     if uploaded_file.type == "application/pdf":
@@ -60,20 +59,18 @@ if uploaded_file:
     else:
         text = read_txt(uploaded_file)
 
-    with st.spinner("Đang tóm tắt nội dung..."):
-        summary = summarize_text(text)
-        st.subheader("Tóm tắt nội dung")
-        st.write(summary)
+    st.subheader("📌 Tóm tắt nội dung:")
+    summary = summarize_text(text)
+    st.write(summary)
 
-    with st.spinner("Đang tạo câu hỏi trắc nghiệm..."):
-        questions = generate_mcq(summary)
+    st.subheader("❓ Câu hỏi trắc nghiệm")
+    quiz = generate_questions(summary)
 
-    st.subheader("Câu hỏi trắc nghiệm")
-    for idx, q in enumerate(questions):
-        st.markdown(f"**Câu {idx + 1}:** {q['question']}")
-        user_ans = st.radio("Chọn đáp án:", q['options'], key=f"q_{idx}")
-        if st.button(f"Kiểm tra câu {idx + 1}"):
-            if user_ans == q['answer']:
-                st.success("Đúng!")
+    for idx, q in enumerate(quiz):
+        st.markdown(f"**Câu {idx+1}:** {q['question']}")
+        ans = st.radio("Chọn đáp án:", q['options'], key=f"q_{idx}")
+        if st.button(f"Kiểm tra câu {idx+1}"):
+            if ans == q["answer"]:
+                st.success("✅ Chính xác!")
             else:
-                st.error(f"Sai. Đáp án đúng là: {q['answer']}")
+                st.error(f"❌ Sai rồi. Đáp án đúng: {q['answer']}")
