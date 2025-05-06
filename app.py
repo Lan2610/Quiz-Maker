@@ -3,9 +3,11 @@ from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 import PyPDF2
 import docx
 
-# Tên mô hình hỗ trợ tiếng Việt tốt hơn
+# Dùng mô hình tốt cho tiếng Việt
 model_name = "csebuetnlp/mT5_multilingual_XLSum"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
+
+# ✅ Dùng tokenizer chậm để tránh lỗi không có fast tokenizer
+tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=False)
 model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 summarizer = pipeline("summarization", model=model, tokenizer=tokenizer)
 
@@ -20,7 +22,6 @@ def read_file(file):
         return file.read().decode("utf-8")
 
 def summarize_text(text):
-    # Cắt đoạn lớn thành từng phần nhỏ (dưới 512 token)
     chunks = [text[i:i+1000] for i in range(0, len(text), 1000)]
     summaries = []
     for chunk in chunks:
