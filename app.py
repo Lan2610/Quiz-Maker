@@ -8,7 +8,7 @@ st.set_page_config(page_title="Quiz Maker", layout="centered")
 st.title("AI Quiz Generator")
 
 # AI pipelines
-summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
+summarizer = pipeline("summarization")
 qa_generator = pipeline("text2text-generation", model="iarfmoose/t5-base-question-generator")
 
 def read_pdf(file):
